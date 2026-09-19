@@ -9,6 +9,7 @@ polygon to /safety/config.
 """
 from collections import defaultdict, deque
 import cv2
+import traceback
 import numpy as np
 import math
 
@@ -31,7 +32,13 @@ class RestrictedZoneDetector:
         })
         self.auto_candidates = []
         self.auto_zone_norm = None
-        self.manual_zone_norm = normalize_polygon(MANUAL_RESTRICTED_ZONE_NORM)
+        self.auto_failed = False
+        # normalize_polygon(None) returns [] (not None) by design, so only
+        # normalize when an env-configured manual zone actually exists --
+        # otherwise manual_zone_norm must stay exactly None, or the "is not
+        # None" check below would treat an empty [] as "manual zone is set"
+        # and auto-detection would never run.
+        self.manual_zone_norm = normalize_polygon(MANUAL_RESTRICTED_ZONE_NORM) if MANUAL_RESTRICTED_ZONE_NORM else None
         self.frame_shape = None
 
     @staticmethod
@@ -56,8 +63,12 @@ class RestrictedZoneDetector:
         if lines is None:
             return None
         segments=[]
-        for line in lines[:,0]:
-            x1,y1,x2,y2=map(int,line)
+        # HoughLinesP normally returns (N,1,4) int32, but be defensive about
+        # the array shape: flatten to (N,4) so every row is always a 4-vector
+        # (indexing [:,0] on an already-flat array yields bare numpy.int32
+        # scalars, which cannot be iterated).
+        for line in np.asarray(lines).reshape(-1,4):
+            x1,y1,x2,y2=(int(v) for v in line)
             length=math.hypot(x2-x1,y2-y1)
             angle=abs(math.degrees(math.atan2(y2-y1,x2-x1)))
             if angle>90: angle=180-angle
@@ -71,7 +82,7 @@ class RestrictedZoneDetector:
         pts=[]
         for _,_,(x1,y1,x2,y2) in segments:
             pts.extend([(x1,y1),(x2,y2)])
-        hull=cv2.convexHull(np.asarray(pts,dtype=np.int32)).reshape(-1,2)
+        hull=cv2.convexHull(np.asarray(pts,dtype=np.int32).reshape(-1,1,2)).reshape(-1,2)
         area=cv2.contourArea(hull)
         frac=area/(w*h)
         if frac < ZONE_AUTO_MIN_AREA or frac > ZONE_AUTO_MAX_AREA:
@@ -89,17 +100,16 @@ class RestrictedZoneDetector:
             approx=cv2.approxPolyDP(hull,0.08*peri,True).reshape(-1,2)
         if len(approx)<3:
             return None
-        return [(float(x)/w,float(y)/h) for x,y in approx]
+        return [(float(p[0])/w,float(p[1])/h) for p in np.asarray(approx).reshape(-1,2)]
 
     @staticmethod
     def _polygon_iou(a,b):
         if not a or not b:
             return 0.0
         # Raster-free convex polygon overlap approximation using masks.
-        xs=[p[0] for p in a+b]; ys=[p[1] for p in a+b]
         scale=600
-        aa=np.array([[int(x*scale),int(y*scale)] for x,y in a],np.int32)
-        bb=np.array([[int(x*scale),int(y*scale)] for x,y in b],np.int32)
+        aa=np.array([[int(p[0]*scale),int(p[1]*scale)] for p in a],np.int32)
+        bb=np.array([[int(p[0]*scale),int(p[1]*scale)] for p in b],np.int32)
         ma=np.zeros((scale,scale),np.uint8); mb=ma.copy()
         cv2.fillPoly(ma,[aa],1); cv2.fillPoly(mb,[bb],1)
         inter=np.logical_and(ma,mb).sum()
@@ -107,15 +117,23 @@ class RestrictedZoneDetector:
         return float(inter/union) if union else 0.0
 
     def auto_update(self, frame, frame_index):
-        if self.manual_zone_norm is not None:
+        if self.manual_zone_norm:
             return self.manual_zone_norm
-        if not ZONE_AUTO_ENABLED or self.auto_zone_norm is not None:
+        if not ZONE_AUTO_ENABLED or self.auto_zone_norm is not None or getattr(self,"auto_failed",False):
             return self.auto_zone_norm
         if frame_index > ZONE_AUTO_WARMUP_FRAMES:
             return None
         if frame_index % max(1,ZONE_AUTO_SAMPLE_EVERY) != 0:
             return None
-        candidate=self._candidate_from_frame(frame)
+        try:
+            candidate=self._candidate_from_frame(frame)
+        except Exception:
+            # Best-effort heuristic: log the full traceback ONCE, disable
+            # auto-detection for this video and carry on without a zone.
+            print("[restricted_zone] auto zone detection failed; continuing without a zone")
+            traceback.print_exc()
+            self.auto_failed=True
+            return None
         if candidate is None:
             return None
         self.auto_candidates.append(candidate)

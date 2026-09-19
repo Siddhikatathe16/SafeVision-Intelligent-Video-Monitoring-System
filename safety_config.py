@@ -102,3 +102,60 @@ WEAPON_PROGRESS_EVERY_N_FRAMES = 30
 
 def normalized_polygon_to_pixels(polygon, width, height):
     return [(int(round(x*width)), int(round(y*height))) for x,y in polygon]
+
+
+# ============================================================
+# Agentic AI layer: Event Correlation -> Supervisor -> Risk -> Response
+# ============================================================
+
+# How close in time (seconds) two events must be to be considered part of
+# the same real-world incident. Also used as the "no new evidence" gap that
+# closes an open incident.
+AGENTIC_CORRELATION_WINDOW_SECONDS = float(os.getenv("AGENTIC_CORRELATION_WINDOW_SECONDS", "6.0"))
+
+# Transparent, explainable per-event-type risk weights (0-100 scale before
+# severity/confidence/bonus adjustments). Unknown event types fall back to
+# AGENTIC_DEFAULT_EVENT_WEIGHT so a future detector never breaks scoring.
+AGENTIC_DEFAULT_EVENT_WEIGHT = float(os.getenv("AGENTIC_DEFAULT_EVENT_WEIGHT", "10"))
+AGENTIC_RISK_WEIGHTS = {
+    "WEAPON_CONFIRMED": float(os.getenv("AGENTIC_WEIGHT_WEAPON", "48")),
+    "POSSIBLE_FALL": float(os.getenv("AGENTIC_WEIGHT_FALL", "26")),
+    "ZONE_INTRUSION": float(os.getenv("AGENTIC_WEIGHT_ZONE", "20")),
+    "ABNORMAL_MOVEMENT": float(os.getenv("AGENTIC_WEIGHT_MOVEMENT", "15")),
+    "HIGH_DENSITY": float(os.getenv("AGENTIC_WEIGHT_HIGH_DENSITY", "16")),
+    "CROWD_BUILDUP": float(os.getenv("AGENTIC_WEIGHT_CROWD_BUILDUP", "12")),
+    "LOITERING": float(os.getenv("AGENTIC_WEIGHT_LOITERING", "10")),
+}
+
+AGENTIC_SEVERITY_MULTIPLIER = {"CRITICAL": 1.30, "HIGH": 1.15, "MEDIUM": 1.0, "LOW": 0.80}
+
+# Bonuses reward *correlated* signals over an isolated one-off detection,
+# matching the "crowd buildup + abnormal movement + fall = one incident"
+# design intent rather than scoring each event in isolation.
+AGENTIC_MULTI_SIGNAL_BONUS = float(os.getenv("AGENTIC_MULTI_SIGNAL_BONUS", "10"))
+AGENTIC_WEAPON_CORRELATION_BONUS = float(os.getenv("AGENTIC_WEAPON_CORRELATION_BONUS", "15"))
+
+# Score -> severity band thresholds (0-100 scale).
+AGENTIC_RISK_CRITICAL_THRESHOLD = float(os.getenv("AGENTIC_RISK_CRITICAL_THRESHOLD", "75"))
+AGENTIC_RISK_HIGH_THRESHOLD = float(os.getenv("AGENTIC_RISK_HIGH_THRESHOLD", "50"))
+AGENTIC_RISK_MEDIUM_THRESHOLD = float(os.getenv("AGENTIC_RISK_MEDIUM_THRESHOLD", "25"))
+
+# Approved response actions per severity band. Deliberately a fixed,
+# auditable table (no free-form LLM action generation) so the Response
+# Agent can only ever execute actions a human has pre-approved.
+AGENTIC_BASE_ACTIONS = {
+    "LOW": ["LOG_INCIDENT"],
+    "MEDIUM": ["LOG_INCIDENT", "FLAG_FOR_REVIEW"],
+    "HIGH": ["LOG_INCIDENT", "FLAG_FOR_REVIEW", "DISPATCH_ALERT", "RETAIN_EVIDENCE"],
+    "CRITICAL": ["LOG_INCIDENT", "FLAG_FOR_REVIEW", "DISPATCH_ALERT", "RETAIN_EVIDENCE",
+                 "NOTIFY_SECURITY_TEAM", "REQUIRE_HUMAN_VERIFICATION"],
+}
+
+AGENTIC_ACTION_LABELS = {
+    "LOG_INCIDENT": "Log incident to record",
+    "FLAG_FOR_REVIEW": "Flag for operator review",
+    "DISPATCH_ALERT": "Dispatch real-time alert to monitoring staff",
+    "RETAIN_EVIDENCE": "Retain evidence frames/clip",
+    "NOTIFY_SECURITY_TEAM": "Notify on-site security team",
+    "REQUIRE_HUMAN_VERIFICATION": "Require human verification before further action",
+}

@@ -128,6 +128,16 @@
                 <div id="safetyDashboard" class="safety-dashboard" style="display:none;">
                     <h3><i class="fas fa-chart-line"></i> Safety Report Dashboard</h3>
 
+                    <div class="dashboard-card incidents-card">
+                        <h4><i class="fas fa-brain"></i> Agentic AI Incident Analysis</h4>
+                        <p class="dashboard-subtitle">
+                            Structured Events &rarr; Event Correlation &rarr; Supervisor &rarr; Risk Agent &rarr; Response Agent.
+                            Related signals are grouped into incidents and triaged automatically.
+                        </p>
+                        <div id="incidentsList" class="incidents-list"></div>
+                        <p class="empty-note" id="incidentsEmpty">No correlated incidents in this video — individual events (if any) did not cluster into a larger situation.</p>
+                    </div>
+
                     <div class="dashboard-stats-grid" id="dashboardStats"></div>
 
                     <div class="dashboard-columns">
@@ -160,9 +170,14 @@
 
                     <div class="dashboard-footer">
                         <span id="zoneInfoNote" class="zone-note"></span>
-                        <a id="downloadReportLink" href="#" target="_blank" class="report-download-btn" style="display:none;">
-                            <i class="fas fa-file-csv"></i> Download Full CSV Report
-                        </a>
+                        <div class="report-download-group">
+                            <a id="downloadReportLink" href="#" target="_blank" class="report-download-btn" style="display:none;">
+                                <i class="fas fa-file-csv"></i> Safety Events CSV
+                            </a>
+                            <a id="downloadIncidentReportLink" href="#" target="_blank" class="report-download-btn" style="display:none;">
+                                <i class="fas fa-file-csv"></i> Incident Report CSV
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -569,7 +584,25 @@
 
             const safetyEvents = data.safety_events || [];
             const weaponEvents = data.weapon_events || [];
+            const incidents = data.incidents || [];
             const fps = data.fps || 25;
+
+            renderIncidents(incidents);
+
+            // Surface any detector that failed mid-video (the run still completes;
+            // the server console has the full traceback for the named detector).
+            const oldWarn = document.getElementById('detectorWarning');
+            if (oldWarn) oldWarn.remove();
+            const detErrs = data.detector_errors || {};
+            if (Object.keys(detErrs).length) {
+                const warn = document.createElement('div');
+                warn.id = 'detectorWarning';
+                warn.style.cssText = 'margin:0 0 16px;padding:12px 16px;border-radius:10px;border:1px solid #f59e0b;background:rgba(245,158,11,.12);font-size:.9rem;';
+                warn.textContent = 'Some detectors hit an internal error and were skipped for affected frames: ' +
+                    Object.entries(detErrs).map(([k, v]) => k + ' (' + v + 'x)').join(', ') +
+                    '. Results for other detectors are unaffected — see the server console for the traceback.';
+                dash.insertBefore(warn, dash.firstChild);
+            }
 
             // ---- Summary stat cards ----
             const counts = {};
@@ -580,6 +613,7 @@
 
             const stats = [
                 { value: data.max_people_count ?? 0, label: 'Peak People Tracked' },
+                { value: incidents.length, label: 'AI Incidents' },
                 { value: weaponEvents.length, label: 'Weapon Alerts' },
                 { value: safetyEvents.length, label: 'Safety Events' },
                 { value: crowdAlerts, label: 'Crowd Alerts' },
@@ -654,6 +688,73 @@
                 dl.href = data.safety_report;
                 dl.style.display = 'inline-flex';
             }
+            const dlIncidents = document.getElementById('downloadIncidentReportLink');
+            if (data.incident_report) {
+                dlIncidents.href = data.incident_report;
+                dlIncidents.style.display = 'inline-flex';
+            }
+        }
+
+        // ---- Agentic AI incident cards ----
+        function riskClass(sev) {
+            sev = (sev || '').toUpperCase();
+            if (sev === 'CRITICAL') return 'risk-critical';
+            if (sev === 'HIGH') return 'risk-high';
+            if (sev === 'MEDIUM') return 'risk-medium';
+            return 'risk-low';
+        }
+
+        function renderIncidents(incidents) {
+            const list = document.getElementById('incidentsList');
+            const empty = document.getElementById('incidentsEmpty');
+            list.innerHTML = '';
+
+            if (!incidents.length) {
+                empty.style.display = 'block';
+                list.style.display = 'none';
+                return;
+            }
+            empty.style.display = 'none';
+            list.style.display = 'grid';
+
+            // Worst-first so the reviewer sees the most urgent incident immediately.
+            const rank = { CRITICAL: 3, HIGH: 2, MEDIUM: 1, LOW: 0 };
+            const sorted = [...incidents].sort((a, b) =>
+                (rank[b.risk_severity] ?? -1) - (rank[a.risk_severity] ?? -1));
+
+            sorted.forEach(inc => {
+                const card = document.createElement('div');
+                card.className = `incident-card ${riskClass(inc.risk_severity)}`;
+
+                const personsText = (inc.person_ids && inc.person_ids.length)
+                    ? inc.person_ids.map(p => `PERSON-${padId(p)}`).join(', ')
+                    : 'SCENE-WIDE';
+
+                const typeChips = (inc.event_types || []).map(t =>
+                    `<span class="type-chip type-danger"><i class="fas ${eventIcon(t)}"></i> ${t}</span>`
+                ).join(' ');
+
+                const actionChips = (inc.response_action_labels || []).map(a =>
+                    `<span class="action-chip">${a}</span>`
+                ).join('');
+
+                card.innerHTML = `
+                    <div class="incident-card-header">
+                        <span class="incident-id">${inc.incident_id}</span>
+                        <span class="sev-badge ${severityClass(inc.risk_severity)}">${inc.risk_severity}</span>
+                        <span class="incident-score">${Math.round(inc.risk_score)}/100</span>
+                    </div>
+                    <div class="incident-meta">
+                        <span><i class="fas fa-clock"></i> ${inc.start_time.toFixed(2)}s &ndash; ${inc.end_time.toFixed(2)}s</span>
+                        <span><i class="fas fa-user"></i> ${personsText}</span>
+                        <span><i class="fas fa-layer-group"></i> ${inc.event_count} event${inc.event_count === 1 ? '' : 's'}</span>
+                    </div>
+                    <div class="incident-types">${typeChips}</div>
+                    <p class="incident-explanation">${inc.risk_explanation}</p>
+                    <div class="incident-actions">${actionChips}</div>
+                `;
+                list.appendChild(card);
+            });
         }
     </script>
 </body>

@@ -4,6 +4,8 @@ The app supplies tracked people.  This module converts trajectories into
 structured events and provides a single drawing/reporting interface.
 """
 import json
+import sys
+import traceback
 import cv2
 import numpy as np
 
@@ -38,6 +40,22 @@ class SafetyEventPipeline:
         self.fall.reset()
         self.final_events = []
         self.event_counter = 0
+        self.detector_errors = {}
+
+    def _safe(self, name, fn, *args, default=None, **kwargs):
+        """Run one detector; a bug in one detector must not abort the whole
+        video. The FULL traceback is printed the first time each detector
+        fails (so the file/line is never hidden) and every failure is counted
+        in `detector_errors`, which is returned to the caller/API."""
+        try:
+            return fn(*args, **kwargs)
+        except Exception as exc:
+            n = self.detector_errors.get(name, 0) + 1
+            self.detector_errors[name] = n
+            if n == 1:
+                print(f"\n[safety pipeline] detector '{name}' raised {exc!r} -- full traceback:", file=sys.stderr)
+                traceback.print_exc()
+            return default
 
     def set_zones(self, restricted_zone=None, loitering_zone=None):
         if restricted_zone is not None:
@@ -56,7 +74,7 @@ class SafetyEventPipeline:
     def update(self, people, frame_index, fps, frame_shape, frame=None):
         h, w = frame_shape[:2]
         if frame is not None:
-            self.zone.auto_update(frame, frame_index)
+            self._safe("zone_auto_detect", self.zone.auto_update, frame, frame_index)
         current_zone_norm = self.zone.current_zone() or []
         current_zone_norm = normalize_polygon(current_zone_norm)
         self.restricted_zone_norm = current_zone_norm
@@ -67,28 +85,29 @@ class SafetyEventPipeline:
         normalized_people = []
         for p in people:
             q = dict(p)
+            # Always plain Python floats: detectors must never see numpy
+            # scalars/arrays in a bbox (they are not iterable / not JSON-safe).
+            q["bbox"] = [float(v) for v in q["bbox"]]
             q["foot_point"] = foot_point(q["bbox"])
             normalized_people.append(q)
 
-        crowd_result = self.crowd.update(
-            normalized_people, frame_index, fps, frame_shape, roi_polygon=None
+        crowd_result = self._safe(
+            "crowd", self.crowd.update,
+            normalized_people, frame_index, fps, frame_shape, roi_polygon=None,
+            default={"count": len(normalized_people), "density": 0.0, "event": None},
         )
         events = []
         if crowd_result.get("event"):
             events.append(self._decorate_event(crowd_result["event"]))
 
-        events.extend(self.zone.update(
-            normalized_people, frame_index, fps, restricted_zone
-        ))
-        events.extend(self.loitering.update(
-            normalized_people, frame_index, fps, loiter_zone
-        ))
-        events.extend(self.movement.update(
-            normalized_people, frame_index, fps
-        ))
-        events.extend(self.fall.update(
-            normalized_people, frame_index, fps
-        ))
+        events.extend(self._safe("restricted_zone", self.zone.update,
+                                 normalized_people, frame_index, fps, restricted_zone, default=[]))
+        events.extend(self._safe("loitering", self.loitering.update,
+                                 normalized_people, frame_index, fps, loiter_zone, default=[]))
+        events.extend(self._safe("abnormal_movement", self.movement.update,
+                                 normalized_people, frame_index, fps, default=[]))
+        events.extend(self._safe("fall", self.fall.update,
+                                 normalized_people, frame_index, fps, default=[]))
 
         for event in events:
             self.event_counter += 1
@@ -139,6 +158,7 @@ class SafetyEventPipeline:
             "crowd_density": crowd_result["density"],
             "restricted_zone": restricted_zone,
             "loitering_zone": loiter_zone,
+            "detector_errors": dict(self.detector_errors),
         }
 
     @staticmethod

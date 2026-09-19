@@ -1100,3 +1100,113 @@ footer {
 .report-download-btn:hover {
     transform: translateY(-2px);
 }
+
+/* ===================== AGENTIC AI INCIDENT CARDS ===================== */
+
+.incidents-card {
+    margin-bottom: 28px;
+}
+
+.dashboard-subtitle {
+    margin: -6px 0 16px;
+    font-size: 0.8rem;
+    color: var(--text-faint, #5b6a8c);
+    line-height: 1.5;
+}
+
+.report-download-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.incidents-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 16px;
+}
+
+.incident-card {
+    background: var(--bg-input, #070c17);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-left: 4px solid var(--accent-cyan, #00e5ff);
+    border-radius: 12px;
+    padding: 16px 18px;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.incident-card:hover {
+    transform: translateY(-2px);
+}
+
+.incident-card.risk-critical { border-left-color: var(--accent-red, #ff3b5c); }
+.incident-card.risk-high { border-left-color: var(--accent-red, #ff3b5c); }
+.incident-card.risk-medium { border-left-color: var(--accent-amber, #ffb020); }
+.incident-card.risk-low { border-left-color: var(--accent-green, #2ecc71); }
+
+.incident-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.incident-id {
+    font-family: var(--font-head, sans-serif);
+    font-weight: 700;
+    color: var(--text-primary, #eaf2ff);
+    font-size: 0.95rem;
+}
+
+.incident-score {
+    margin-left: auto;
+    font-family: var(--font-head, sans-serif);
+    font-weight: 700;
+    color: var(--accent-cyan, #00e5ff);
+    font-size: 0.95rem;
+}
+
+.incident-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 0.78rem;
+    color: var(--text-muted, #8b9bc0);
+    margin-bottom: 12px;
+}
+
+.incident-meta i {
+    color: var(--accent-cyan, #00e5ff);
+    margin-right: 4px;
+}
+
+.incident-types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.incident-explanation {
+    font-size: 0.8rem;
+    color: var(--text-muted, #8b9bc0);
+    line-height: 1.5;
+    margin: 0 0 12px;
+}
+
+.incident-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.action-chip {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: rgba(139, 92, 246, 0.15);
+    color: var(--accent-purple, #8b5cf6);
+    border: 1px solid rgba(139, 92, 246, 0.35);
+}

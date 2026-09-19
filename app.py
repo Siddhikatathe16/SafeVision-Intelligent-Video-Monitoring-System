@@ -11,12 +11,15 @@ from PIL import Image
 import io
 import numpy as np
 import subprocess
+import sys
+import traceback
 import imageio_ffmpeg
 import re
 import time
 
 from safety_event_pipeline import SafetyEventPipeline
 from safety_config import WEAPON_MAX_PERSON_AREA_RATIO
+from agentic_ai import AgenticSupervisor
 
 # ============================================================
 # FLASK APP
@@ -420,6 +423,47 @@ class WeaponEventTracker:
 
 weapon_event_tracker = WeaponEventTracker()
 safety_event_pipeline = SafetyEventPipeline()
+agentic_supervisor = AgenticSupervisor()
+
+
+def _weapon_detection_to_structured_event(detection, frame_index, fps):
+    """Convert a newly-confirmed weapon detection into the same structured
+    event schema the safety detectors use, so the Event Correlator and
+    Agentic layer can treat weapon and safety events uniformly. Built here
+    (with frame_index/fps already in scope) rather than trusting the
+    tracker's own bookkeeping, since WeaponEventTracker.active_confirmed()
+    does not carry frame/timestamp fields."""
+    fps = max(float(fps), 1.0)
+    return {
+        "event_type": "WEAPON_CONFIRMED",
+        "severity": "CRITICAL",
+        "person_id": detection.get("associated_person_id"),
+        "confidence": float(detection.get("confidence", 0.5)),
+        "frame": int(frame_index),
+        "timestamp": frame_index / fps,
+        "details": {
+            "weapon_id": detection.get("weapon_id"),
+            "weapon_type": str(detection.get("class", "weapon")),
+        },
+    }
+
+
+_agentic_error_count = 0
+
+
+def _safe_agentic_ingest(event):
+    """Feed one event to the Agentic AI layer. The agentic layer is an
+    analysis add-on: if it ever fails, print the full traceback (once) and
+    keep processing the video instead of aborting the whole request."""
+    global _agentic_error_count
+    try:
+        return agentic_supervisor.ingest_event(event)
+    except Exception as exc:
+        _agentic_error_count += 1
+        if _agentic_error_count == 1:
+            print(f"\n[agentic] ingest_event raised {exc!r} for event {event!r} -- traceback:", file=sys.stderr)
+            traceback.print_exc()
+        return None
 
 
 def _weapon_class_name(name):
@@ -574,6 +618,7 @@ def reset_tracking_state():
     stable_person_identity.reset()
     weapon_event_tracker.reset()
     safety_event_pipeline.reset()
+    agentic_supervisor.reset()
 
     # Ultralytics stores tracker state in the model predictor when persist=True.
     # Resetting predictor forces a fresh tracker for the next session.
@@ -698,7 +743,12 @@ def process_video_frame(frame, confidence=0.30, frame_index=0, fps=25.0):
             associated = _associate_weapon_with_person(weapon, person_detections)
             if associated is not None:
                 weapon["associated_person_id"] = associated
-        weapon_event_tracker.update(weapon_detections, frame_index)
+        newly_confirmed_weapons = weapon_event_tracker.update(weapon_detections, frame_index)
+        for weapon in newly_confirmed_weapons:
+            if weapon.get("newly_confirmed"):
+                _safe_agentic_ingest(
+                    _weapon_detection_to_structured_event(weapon, frame_index, fps)
+                )
 
     active_weapon_detections = weapon_event_tracker.active_confirmed(frame_index)
 
@@ -708,6 +758,22 @@ def process_video_frame(frame, confidence=0.30, frame_index=0, fps=25.0):
     safety_result = safety_event_pipeline.update(
         person_detections, frame_index=frame_index, fps=fps, frame_shape=frame.shape, frame=frame
     )
+
+    # --------------------------------------------------------
+    # AGENTIC AI LAYER: feed each structured event as it happens so the
+    # Event Correlator / Risk Agent / Response Agent stay live, and surface
+    # the worst currently-open incident for the on-frame banner.
+    # --------------------------------------------------------
+    touched_incidents = []
+    for event in safety_result.get("events", []):
+        incident = _safe_agentic_ingest(event)
+        if incident is not None:
+            touched_incidents.append(incident)
+    safety_result["active_incident"] = None
+    if touched_incidents:
+        severity_rank = {"CRITICAL": 3, "HIGH": 2, "MEDIUM": 1, "LOW": 0}
+        worst = max(touched_incidents, key=lambda inc: severity_rank.get(inc.get("risk_severity"), -1))
+        safety_result["active_incident"] = worst
 
     alert_person_ids = set(safety_result.get("alert_person_ids", []))
     alert_types_by_person = safety_result.get("alert_types_by_person", {})
@@ -740,8 +806,32 @@ def process_video_frame(frame, confidence=0.30, frame_index=0, fps=25.0):
         draw_detection(frame, detection, detection.get("track_id", -1))
 
     safety_event_pipeline.draw(frame, safety_result)
+    _draw_incident_banner(frame, safety_result.get("active_incident"))
 
     return frame, combined, people_count, weapon_count, safety_result
+
+
+def _draw_incident_banner(frame, incident):
+    """Draw a full-width banner when the Agentic AI layer's live risk
+    assessment for the currently active incident reaches HIGH/CRITICAL --
+    this is the human-facing signal that several correlated signals (not
+    just one detector) point to a real unfolding situation."""
+    if not incident or incident.get("risk_severity") not in ("HIGH", "CRITICAL"):
+        return
+    is_critical = incident["risk_severity"] == "CRITICAL"
+    color = (0, 0, 255) if is_critical else (0, 140, 255)
+    h, w = frame.shape[:2]
+    bar_h = 34
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (0, 0), (w, bar_h), color, -1)
+    cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
+    types = "+".join(incident.get("event_types", []))
+    text = (
+        f"AGENTIC AI: {incident['risk_severity']} INCIDENT {incident.get('incident_id', '')} "
+        f"risk={incident.get('risk_score', 0):.0f}/100 [{types}]"
+    )
+    cv2.putText(frame, text, (10, bar_h - 10), cv2.FONT_HERSHEY_SIMPLEX,
+                0.58, (255, 255, 255), 2, cv2.LINE_AA)
 
 
 # ============================================================
@@ -1402,6 +1492,31 @@ def detect_video():
         else:
             print("NO CROWD / LOITERING / ZONE / MOVEMENT / FALL EVENTS DETECTED")
 
+        # Close out every remaining open incident now that the full video
+        # (and every structured event it produced) has been processed.
+        final_incidents = agentic_supervisor.finalize()
+
+        print("\n" + "=" * 70)
+        print("FINAL AGENTIC AI INCIDENT REPORT")
+        print("=" * 70)
+        if final_incidents:
+            for incident in final_incidents:
+                persons_text = (
+                    ",".join(f"PERSON-{pid:03d}" for pid in incident["person_ids"])
+                    if incident["person_ids"] else "SCENE-WIDE"
+                )
+                print(
+                    f"[{incident['incident_id']}] {incident['start_time']:07.2f}s -> "
+                    f"{incident['end_time']:07.2f}s | {persons_text}"
+                )
+                print(f"EVENT TYPES : {'+'.join(incident['event_types'])} ({incident['event_count']} events)")
+                print(f"RISK        : {incident['risk_severity']} ({incident['risk_score']}/100)")
+                print(f"EXPLANATION : {incident['risk_explanation']}")
+                print(f"RESPONSE    : {', '.join(incident['response_action_labels'])}")
+                print("-" * 70)
+        else:
+            print("NO CORRELATED INCIDENTS -- no events crossed the correlation window together")
+
         print("=" * 70)
         print(
             f"Video processing complete: "
@@ -1416,6 +1531,27 @@ def detect_video():
 
         safety_report_csv = os.path.join(capture_dir, "final_safety_event_report.csv")
         pd.DataFrame(final_safety_events).to_csv(safety_report_csv, index=False)
+
+        incident_report_csv = os.path.join(capture_dir, "final_incident_report.csv")
+        if final_incidents:
+            incident_rows = [{
+                "incident_id": i["incident_id"],
+                "start_time": i["start_time"],
+                "end_time": i["end_time"],
+                "duration_seconds": i["duration_seconds"],
+                "person_ids": ",".join(str(p) for p in i["person_ids"]) or "SCENE-WIDE",
+                "event_types": "+".join(i["event_types"]),
+                "event_count": i["event_count"],
+                "risk_score": i["risk_score"],
+                "risk_severity": i["risk_severity"],
+                "response_actions": ",".join(i["response_actions"]),
+            } for i in final_incidents]
+            pd.DataFrame(incident_rows).to_csv(incident_report_csv, index=False)
+        else:
+            pd.DataFrame(columns=[
+                "incident_id", "start_time", "end_time", "duration_seconds", "person_ids",
+                "event_types", "event_count", "risk_score", "risk_severity", "response_actions"
+            ]).to_csv(incident_report_csv, index=False)
 
         # ----------------------------------------------------
         # RE-ENCODE TO H.264 FOR BROWSER PLAYBACK
@@ -1519,11 +1655,20 @@ def detect_video():
             "safety_events":
             final_safety_events,
 
+            "incidents":
+            final_incidents,
+
             "captured_frames":
             f"/outputs/{os.path.basename(capture_dir)}",
 
             "safety_report":
             f"/outputs/{os.path.basename(capture_dir)}/final_safety_event_report.csv",
+
+            "incident_report":
+            f"/outputs/{os.path.basename(capture_dir)}/final_incident_report.csv",
+
+            "detector_errors":
+            dict(safety_event_pipeline.detector_errors),
 
             "restricted_zone_normalized":
             safety_event_pipeline.restricted_zone_norm,
@@ -1535,13 +1680,20 @@ def detect_video():
 
     except Exception as e:
 
+        # Always show WHERE it failed -- repr(e) alone hides the file/line.
+        tb = traceback.format_exc()
         print("\n" + "=" * 60)
         print("VIDEO DETECTION ERROR")
         print(repr(e))
+        print(tb)
         print("=" * 60)
 
+        frames = traceback.extract_tb(e.__traceback__)
+        where = f"{os.path.basename(frames[-1].filename)}:{frames[-1].lineno} in {frames[-1].name}" if frames else None
         return jsonify({
-            "error": str(e)
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "error_location": where,
         }), 500
 
 
