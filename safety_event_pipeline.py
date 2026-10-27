@@ -16,6 +16,7 @@ from loitering_detector import LoiteringDetector
 from restricted_zone_detector import RestrictedZoneDetector
 from abnormal_movement_detector import AbnormalMovementDetector
 from fall_detector import FallDetector
+from object_theft_detector import ObjectTheftDetector
 
 
 class SafetyEventPipeline:
@@ -25,6 +26,7 @@ class SafetyEventPipeline:
         self.zone = RestrictedZoneDetector()
         self.movement = AbnormalMovementDetector()
         self.fall = FallDetector()
+        self.theft = ObjectTheftDetector(zones=[])
         self.restricted_zone_norm = normalize_polygon(MANUAL_RESTRICTED_ZONE_NORM)
         self.loitering_zone_norm = normalize_polygon(LOITERING_ZONE_NORM)
         self.final_events = []
@@ -38,6 +40,7 @@ class SafetyEventPipeline:
         self.zone.reset()
         self.movement.reset()
         self.fall.reset()
+        self.theft.reset()
         self.final_events = []
         self.event_counter = 0
         self.detector_errors = {}
@@ -71,7 +74,7 @@ class SafetyEventPipeline:
     def _decorate_event(event):
         return dict(event)
 
-    def update(self, people, frame_index, fps, frame_shape, frame=None):
+    def update(self, people, frame_index, fps, frame_shape, frame=None, item_detections=None):
         h, w = frame_shape[:2]
         if frame is not None:
             self._safe("zone_auto_detect", self.zone.auto_update, frame, frame_index)
@@ -108,6 +111,10 @@ class SafetyEventPipeline:
                                  normalized_people, frame_index, fps, default=[]))
         events.extend(self._safe("fall", self.fall.update,
                                  normalized_people, frame_index, fps, default=[]))
+
+        if item_detections is not None:
+            events.extend(self._safe("item_theft", self.theft.update,
+                                     item_detections, normalized_people, frame_index, fps, frame_shape, default=[]))
 
         for event in events:
             self.event_counter += 1

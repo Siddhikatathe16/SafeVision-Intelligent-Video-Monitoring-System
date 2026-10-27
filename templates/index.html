@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Public Safety Video Monitor | Real-Time Threat Detection</title>
+    <title>SafeVision: Intelligent Video Monitoring System | Real-Time Threat Detection</title>
     <meta name="description" content="Real-time person tracking and weapon/threat detection powered by YOLO + ByteTrack.">
     <link rel="icon" href="{{ url_for('static', filename='assets/favicon.png') }}" type="image/png">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -77,7 +77,6 @@
                 </button>
             </div>
 
-            <!-- ===================== VIDEO UPLOAD PANEL ===================== -->
             <div class="mode-panel" id="videoPanel">
                 <div class="detection-studio-layout">
                     <div class="controls-panel">
@@ -124,7 +123,6 @@
                     </div>
                 </div>
 
-                <!-- ===================== SAFETY REPORT DASHBOARD ===================== -->
                 <div id="safetyDashboard" class="safety-dashboard" style="display:none;">
                     <h3><i class="fas fa-chart-line"></i> Safety Report Dashboard</h3>
 
@@ -182,7 +180,6 @@
                 </div>
             </div>
 
-            <!-- ===================== LIVE CAMERA PANEL ===================== -->
             <div class="mode-panel" id="livePanel" style="display:none;">
                 <div class="detection-studio-layout">
                     <div class="controls-panel">
@@ -243,30 +240,27 @@
             <h3>Meet Our Team</h3>
             <div class="team">
               <div class="member-card">
-                <img src="https://www.w3schools.com/howto/img_avatar.png" alt="Aditya Dhakane">
-                <h4>Aditya Dhakane</h4>
+                <img src="https://www.w3schools.com/howto/img_avatar.png" alt="Siddhika Tathe">
+                <h4>Siddhika Tathe</h4>
                 <p>Project Manager & Agentic AI Developer</p>
               </div>
               <div class="member-card">
-                <img src="https://www.w3schools.com/howto/img_avatar2.png" alt="Shreya Anjikhane">
-                <h4>Shreya Anjikhane</h4>
+                <img src="https://www.w3schools.com/howto/img_avatar2.png" alt="Pranav">
+                <h4>Pranav</h4>
                 <p>Computer Vision & ML Developer</p>
               </div>
               <div class="member-card">
-                <img src="https://www.w3schools.com/howto/img_avatar2.png" alt="Arya Shah">
-                <h4>Arya Shah</h4>
+                <img src="https://www.w3schools.com/howto/img_avatar2.png" alt="Vasdev">
+                <h4>Vasdev</h4>
                 <p>Backend & API Developer</p>
               </div>
               <div class="member-card">
-                <img src="https://www.w3schools.com/howto/img_avatar.png" alt="Vaibhav Mhetre">
-                <h4>Vaibhav Mhetre</h4>
+                <img src="https://www.w3schools.com/howto/img_avatar.png" alt="Nikhil">
+                <h4>Nikhil</h4>
                 <p>UI/UX & Dashboard Developer</p>
               </div>
-              <div class="member-card">
-                <img src="https://www.w3schools.com/howto/img_avatar.png" alt="Shubham Bhosale">
-                <h4>Shubham Bhosale</h4>
-                <p>Documentation & Project Support</p>
-              </div>
+
+            
           
             </div>
         </div>
@@ -316,13 +310,11 @@
         </section>
     </main>
 
-  <!-- Footer -->
     <footer>
       <section class="contact-section" id="contact-section">
       <div style="max-width:1200px; margin:auto; text-align:center; line-height:1.8;">
           <p style="font-size:1.2rem; margin-bottom:1rem; font-weight:600;">CONTACT US</p>
 
-          <!-- Top row: Email & Phone -->
           <div style="margin-bottom:15px;">
       <span style="margin-right:30px;">
           <i class="fas fa-envelope"></i> Email: 
@@ -339,10 +331,7 @@
       <i class="fas fa-map-marker-alt"></i> Address: 
       <span style="color:#32dde6;">666, Upper Indira Nagar, Bibwewadi, Pune, Maharashtra, India - 411037</span>
   </span></div>
-          <!-- Bottom row: GitHub, Demo, Email -->
           <div style="margin-bottom:15px;">
-              <a href="https://github.com/aadi8067/AI-Public-Safety-Video-Monitor-Using-Computer-Vision-and-Agentic-AI.git" target="_blank" style="color:#32dde6; text-decoration:none; margin:0 10px;">GitHub Repo</a> |
-              <!-- <a href="https://youtu.be/YourDemoVideoLink" target="_blank" style="color:#32dde6; text-decoration:none; margin:0 10px;">Demo Video</a> | -->
               <a href="{{ url_for('contact') }}" style="color:#32dde6; text-decoration:none; margin:0 10px;">Need Help?</a>
           </div>
 
@@ -588,6 +577,855 @@
             const fps = data.fps || 25;
 
             renderIncidents(incidents);
+
+            // Surface any detector that failed mid-video (the run still completes;
+            // the server console has the full traceback for the named detector).
+            const oldWarn = document.getElementById('detectorWarning');
+            if (oldWarn) oldWarn.remove();
+            const detErrs = data.detector_errors || {};
+            if (Object.keys(detErrs).length) {
+                const warn = document.createElement('div');
+                warn.id = 'detectorWarning';
+                warn.style.cssText = 'margin:0 0 16px;padding:12px 16px;border-radius:10px;border:1px solid #f59e0b;background:rgba(245,158,11,.12);font-size:.9rem;';
+                warn.textContent = 'Some detectors hit an internal error and were skipped for affected frames: ' +
+                    Object.entries(detErrs).map(([k, v]) => k + ' (' + v + 'x)').join(', ') +
+                    '. Results for other detectors are unaffected — see the server console for the traceback.';
+                dash.insertBefore(warn, dash.firstChild);
+            }
+
+            // ---- Summary stat cards ----
+            const counts = {};
+            safetyEvents.forEach(e => {
+                counts[e.event_type] = (counts[e.event_type] || 0) + 1;
+            });
+            const crowdAlerts = (counts['HIGH_DENSITY'] || 0) + (counts['CROWD_BUILDUP'] || 0);
+
+            const stats = [
+                { value: data.max_people_count ?? 0, label: 'Peak People Tracked' },
+                { value: incidents.length, label: 'AI Incidents' },
+                { value: weaponEvents.length, label: 'Weapon Alerts' },
+                { value: safetyEvents.length, label: 'Safety Events' },
+                { value: crowdAlerts, label: 'Crowd Alerts' },
+                { value: counts['ZONE_INTRUSION'] || 0, label: 'Zone Intrusions' },
+                { value: counts['LOITERING'] || 0, label: 'Loitering' },
+                { value: counts['ABNORMAL_MOVEMENT'] || 0, label: 'Abnormal Movement' },
+                { value: counts['POSSIBLE_FALL'] || 0, label: 'Falls Detected' },
+            ];
+            document.getElementById('dashboardStats').innerHTML = stats.map(s =>
+                `<div class="stat-card"><div class="stat-value">${s.value}</div><div class="stat-label">${s.label}</div></div>`
+            ).join('');
+
+            // ---- Weapon events table ----
+            const weaponTable = document.getElementById('weaponEventsTable');
+            const weaponBody = weaponTable.querySelector('tbody');
+            weaponBody.innerHTML = '';
+            const hasWeaponEvents = weaponEvents.length > 0;
+            weaponTable.style.display = hasWeaponEvents ? 'table' : 'none';
+            document.getElementById('weaponEventsEmpty').style.display = hasWeaponEvents ? 'none' : 'block';
+
+            weaponEvents.forEach(w => {
+                const tr = document.createElement('tr');
+                const personText = (w.person_id !== null && w.person_id !== undefined)
+                    ? `PERSON-${padId(w.person_id)}` : 'UNASSIGNED';
+                const startS = (w.start_frame / fps).toFixed(1);
+                const endS = (w.end_frame / fps).toFixed(1);
+                tr.innerHTML = `
+                    <td>WEAPON-${padId(w.weapon_id)}</td>
+                    <td><span class="type-chip type-danger">${w.type}</span></td>
+                    <td>${personText}</td>
+                    <td>${Math.round((w.confidence || 0) * 100)}%</td>
+                    <td>${startS}s &ndash; ${endS}s</td>
+                `;
+                weaponBody.appendChild(tr);
+            });
+
+            // ---- Safety events timeline table ----
+            const safetyTable = document.getElementById('safetyEventsTable');
+            const safetyBody = safetyTable.querySelector('tbody');
+            safetyBody.innerHTML = '';
+            const hasSafetyEvents = safetyEvents.length > 0;
+            safetyTable.style.display = hasSafetyEvents ? 'table' : 'none';
+            document.getElementById('safetyEventsEmpty').style.display = hasSafetyEvents ? 'none' : 'block';
+
+            safetyEvents.forEach(ev => {
+                const tr = document.createElement('tr');
+                const personText = (ev.person_id !== null && ev.person_id !== undefined)
+                    ? `PERSON-${padId(ev.person_id)}` : 'ALL';
+                const timeVal = Number(ev.time_seconds ?? ev.timestamp ?? 0);
+                tr.innerHTML = `
+                    <td>${timeVal.toFixed(2)}s</td>
+                    <td><i class="fas ${eventIcon(ev.event_type)}"></i> ${ev.event_type}</td>
+                    <td>${personText}</td>
+                    <td><span class="sev-badge ${severityClass(ev.severity)}">${ev.severity || 'MEDIUM'}</span></td>
+                    <td>${Math.round((Number(ev.confidence) || 0) * 100)}%</td>
+                `;
+                safetyBody.appendChild(tr);
+            });
+
+            // ---- Zone transparency note ----
+            const zoneNote = document.getElementById('zoneInfoNote');
+            if (data.restricted_zone_normalized) {
+                zoneNote.innerHTML =
+                    '<i class="fas fa-draw-polygon"></i> Restricted zone (normalized): ' +
+                    JSON.stringify(data.restricted_zone_normalized) +
+                    ' &mdash; configure via <code>/safety/config</code>';
+            }
+
+            // ---- CSV download link ----
+            const dl = document.getElementById('downloadReportLink');
+            if (data.safety_report) {
+                dl.href = data.safety_report;
+                dl.style.display = 'inline-flex';
+            }
+            const dlIncidents = document.getElementById('downloadIncidentReportLink');
+            if (data.incident_report) {
+                dlIncidents.href = data.incident_report;
+                dlIncidents.style.display = 'inline-flex';
+            }
+        }
+
+        // ---- Agentic AI incident cards ----
+        function riskClass(sev) {
+            sev = (sev || '').toUpperCase();
+            if (sev === 'CRITICAL') return 'risk-critical';
+            if (sev === 'HIGH') return 'risk-high';
+            if (sev === 'MEDIUM') return 'risk-medium';
+            return 'risk-low';
+        }
+
+        function renderIncidents(incidents) {
+            const list = document.getElementById('incidentsList');
+            const empty = document.getElementById('incidentsEmpty');
+            list.innerHTML = '';
+
+            if (!incidents.length) {
+                empty.style.display = 'block';
+                list.style.display = 'none';
+                return;
+            }
+            empty.style.display = 'none';
+            list.style.display = 'grid';
+
+            // Worst-first so the reviewer sees the most urgent incident immediately.
+            const rank = { CRITICAL: 3, HIGH: 2, MEDIUM: 1, LOW: 0 };
+            const sorted = [...incidents].sort((a, b) =>
+                (rank[b.risk_severity] ?? -1) - (rank[a.risk_severity] ?? -1));
+
+            sorted.forEach(inc => {
+                const card = document.createElement('div');
+                card.className = `incident-card ${riskClass(inc.risk_severity)}`;
+
+                const personsText = (inc.person_ids && inc.person_ids.length)
+                    ? inc.person_ids.map(p => `PERSON-${padId(p)}`).join(', ')
+                    : 'SCENE-WIDE';
+
+                const typeChips = (inc.event_types || []).map(t =>
+                    `<span class="type-chip type-danger"><i class="fas ${eventIcon(t)}"></i> ${t}</span>`
+                ).join(' ');
+
+                const actionChips = (inc.response_action_labels || []).map(a =>
+                    `<span class="action-chip">${a}</span>`
+                ).join('');
+
+                card.innerHTML = `
+                    <div class="incident-card-header">
+                        <span class="incident-id">${inc.incident_id}</span>
+                        <span class="sev-badge ${severityClass(inc.risk_severity)}">${inc.risk_severity}</span>
+                        <span class="incident-score">${Math.round(inc.risk_score)}/100</span>
+                    </div>
+                    <div class="incident-meta">
+                        <span><i class="fas fa-clock"></i> ${inc.start_time.toFixed(2)}s &ndash; ${inc.end_time.toFixed(2)}s</span>
+                        <span><i class="fas fa-user"></i> ${personsText}</span>
+                        <span><i class="fas fa-layer-group"></i> ${inc.event_count} event${inc.event_count === 1 ? '' : 's'}</span>
+                    </div>
+                    <div class="incident-types">${typeChips}</div>
+                    <p class="incident-explanation">${inc.risk_explanation}</p>
+                    <div class="incident-actions">${actionChips}</div>
+                `;
+                list.appendChild(card);
+            });
+        }
+    </script>
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeVision: Intelligent Video Monitoring System | Real-Time Threat Detection</title>
+    <meta name="description" content="Real-time person tracking and weapon/threat detection powered by YOLO + ByteTrack.">
+    <link rel="icon" href="{{ url_for('static', filename='assets/favicon.png') }}" type="image/png">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+</head>
+<body>
+    <nav>
+        <div class="nav-logo">
+            <img src="{{ url_for('static', filename='assets/safety-monitor-icon.svg') }}" alt="AI Safety Video Monitor" style="height:55px;">
+        </div>
+        <ul>
+            <li><a href="#hero">Home</a></li>
+            <li><a href="#detection">Detection</a></li>
+            <li><a href="#about">About</a></li>
+            <li><a href="#faq-section">FAQ</a></li>
+            <li><a href="#contact-section">Contact Us</a></li>
+        </ul>
+    </nav>
+
+    <section class="hero-section" id="hero">
+        <div class="hero-placeholder-box">
+            <img src="{{ url_for('static', filename='assets/hero-safety-monitor.png') }}" alt="AI Safety Monitoring" class="hero-image">
+              <div class="hero-overlay-content">
+                <span class="hero-eyebrow"><i class="fas fa-shield-alt"></i> Public Safety • Real-Time AI</span>
+                <h1>AI Public Safety<br>Video Monitor</h1>
+                <p>
+                    Real-time person tracking and weapon/threat detection powered by YOLO + ByteTrack.
+                    Upload footage for full tracking analysis, or go live with your camera for instant monitoring.
+                </p>
+                <div class="hero-badges">
+                    <span class="hero-badge">YOLOv8</span>
+                    <span class="hero-badge">ByteTrack</span>
+                    <span class="hero-badge">Real-Time Tracking</span>
+                    <span class="hero-badge">Threat Alerts</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="feature-cards-section">
+        <div class="feature-card">
+            <h3>🎯 Persistent Tracking</h3>
+            <p>Every person gets a stable ID that follows them across the whole video</p>
+        </div>
+        <div class="feature-card">
+            <h3>🚨 Threat Alerts</h3>
+            <p>Weapon detections are confirmed over multiple frames before triggering an alert</p>
+        </div>
+        <div class="feature-card">
+            <h3>🔴 Live Monitoring</h3>
+            <p>Point your webcam at a scene and see detections happen in real time</p>
+        </div>
+        <div class="feature-card">
+            <h3>🔗 Person-Linked Alerts</h3>
+            <p>A confirmed threat highlights both the weapon and the person carrying it</p>
+        </div>
+    </section>
+
+    <main>
+        <div class="container studio-container" id="detection">
+            <h2>Detection Studio</h2>
+
+            <div class="mode-tabs">
+                <button class="mode-tab active" id="tabVideoBtn" data-target="videoPanel">
+                    <i class="fas fa-file-video"></i> Upload Video
+                </button>
+                <button class="mode-tab" id="tabLiveBtn" data-target="livePanel">
+                    <i class="fas fa-satellite-dish"></i> Live Camera
+                </button>
+            </div>
+
+            <!-- ===================== VIDEO UPLOAD PANEL ===================== -->
+            <div class="mode-panel" id="videoPanel">
+                <div class="detection-studio-layout">
+                    <div class="controls-panel">
+                        <h3>Video Recognition Controls</h3>
+                        <form id="videoUploadForm" class="upload-form">
+                            <p style="font-size:0.9rem; color:#b3b0b0; margin-bottom:5px;">
+                                Upload a video. Every detected person gets a persistent ID, and any confirmed
+                                weapon is linked directly to the person carrying it.
+                            </p>
+                            <label for="videoConfidenceSlider" style="margin-top:10px; display:block;">
+                                Confidence Threshold: <span id="videoConfidenceValue">0.3</span>
+                            </label>
+                            <input type="range" id="videoConfidenceSlider" name="confidence" min="0" max="1" step="0.05" value="0.3">
+
+                            <label for="videoInput" class="upload-label dropzone" id="videoUploadLabel">
+                                <i class="fas fa-cloud-upload-alt dropzone-icon"></i>
+                                <span class="dropzone-text">Drag &amp; drop a video, or click to choose one</span>
+                            </label>
+                            <input type="file" name="video" id="videoInput" accept="video/*" required>
+                            <span id="videoFileNameDisplay" class="file-chip"></span>
+                            <button type="submit" id="detectVideoButton">
+                                <i class="fas fa-play"></i> Process Video
+                            </button>
+                        </form>
+
+                        <div class="legend">
+                            <div class="legend-chip"><span class="dot dot-green"></span> Tracked Person</div>
+                            <div class="legend-chip"><span class="dot dot-orange"></span> Weapon — Checking</div>
+                            <div class="legend-chip"><span class="dot dot-red"></span> Weapon — Confirmed Alert</div>
+                        </div>
+                    </div>
+
+                    <div class="results-panel">
+                        <h3>Tracking Results 📋</h3>
+                        <div class="result-box-wrapper">
+                            <pre id="videoResultBox" class="placeholder">Upload a video to see tracking results here.</pre>
+                        </div>
+                        <div id="videoProgress" class="progress-wrap" style="display:none;">
+                            <div class="progress-bar"><div class="progress-fill"></div></div>
+                            <span class="progress-label">Processing on the server — this can take a while for longer clips…</span>
+                        </div>
+                        <h4>Tracked Video:</h4>
+                        <video id="trackedVideo" controls style="width:100%; border-radius:10px; display:none;"></video>
+                    </div>
+                </div>
+
+                <!-- ===================== SAFETY REPORT DASHBOARD ===================== -->
+                <div id="safetyDashboard" class="safety-dashboard" style="display:none;">
+                    <h3><i class="fas fa-chart-line"></i> Safety Report Dashboard</h3>
+
+                    <div class="dashboard-card incidents-card">
+                        <h4><i class="fas fa-brain"></i> Agentic AI Incident Analysis</h4>
+                        <p class="dashboard-subtitle">
+                            Structured Events &rarr; Event Correlation &rarr; Supervisor &rarr; Risk Agent &rarr; Response Agent.
+                            Related signals are grouped into incidents and triaged automatically.
+                        </p>
+                        <div id="incidentsList" class="incidents-list"></div>
+                        <p class="empty-note" id="incidentsEmpty">No correlated incidents in this video — individual events (if any) did not cluster into a larger situation.</p>
+                    </div>
+
+                    <div class="dashboard-stats-grid" id="dashboardStats"></div>
+
+                    <div class="dashboard-columns">
+                        <div class="dashboard-card">
+                            <h4><i class="fas fa-gun"></i> Weapon Alerts</h4>
+                            <div class="table-wrap">
+                                <table class="report-table" id="weaponEventsTable" style="display:none;">
+                                    <thead>
+                                        <tr><th>Weapon</th><th>Type</th><th>Person</th><th>Confidence</th><th>Time Window</th></tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                            <p class="empty-note" id="weaponEventsEmpty">No confirmed weapon alerts in this video.</p>
+                        </div>
+
+                        <div class="dashboard-card">
+                            <h4><i class="fas fa-list-check"></i> Safety Events Timeline</h4>
+                            <div class="table-wrap">
+                                <table class="report-table" id="safetyEventsTable" style="display:none;">
+                                    <thead>
+                                        <tr><th>Time</th><th>Event</th><th>Person</th><th>Severity</th><th>Confidence</th></tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                            <p class="empty-note" id="safetyEventsEmpty">No crowd, loitering, zone, movement or fall events detected.</p>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-footer">
+                        <span id="zoneInfoNote" class="zone-note"></span>
+                        <div class="report-download-group">
+                            <a id="downloadReportLink" href="#" target="_blank" class="report-download-btn" style="display:none;">
+                                <i class="fas fa-file-csv"></i> Safety Events CSV
+                            </a>
+                            <a id="downloadIncidentReportLink" href="#" target="_blank" class="report-download-btn" style="display:none;">
+                                <i class="fas fa-file-csv"></i> Incident Report CSV
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===================== LIVE CAMERA PANEL ===================== -->
+            <div class="mode-panel" id="livePanel" style="display:none;">
+                <div class="detection-studio-layout">
+                    <div class="controls-panel">
+                        <h3>Live Monitoring Controls</h3>
+                        <p style="font-size:0.9rem; color:#b3b0b0;">
+                            Starts a live detection feed from the server's connected camera. Tracking IDs and
+                            weapon alerts update continuously.
+                        </p>
+                        <button id="liveToggleButton" class="live-toggle-btn">
+                            <i class="fas fa-video"></i> Start Live Detection
+                        </button>
+
+                        <div class="legend">
+                            <div class="legend-chip"><span class="dot dot-green"></span> Tracked Person</div>
+                            <div class="legend-chip"><span class="dot dot-orange"></span> Weapon — Checking</div>
+                            <div class="legend-chip"><span class="dot dot-red"></span> Weapon — Confirmed Alert</div>
+                        </div>
+                    </div>
+
+                    <div class="results-panel">
+                        <h3>Live Feed <span id="liveStatusBadge" class="status-badge status-offline">OFFLINE</span></h3>
+                        <div id="staticResults">
+                            <p style="text-align:center; color:#b3b0b0;">Start the feed to begin live detection.</p>
+                        </div>
+                        <div id="liveResults" style="display:none;">
+                            <img id="liveStream" src="" alt="Live Stream" style="width:100%; border-radius:10px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="about-section" id="about">
+            <h1>About This Project</h1>
+            <p>
+                AI Public Safety Video Monitor combines Computer Vision (YOLOv8 + ByteTrack) with a dedicated
+                weapon-detection model to track people and flag armed individuals in video footage or a live
+                camera feed. Detections are confirmed across multiple frames before an alert is raised, to
+                reduce false positives.
+            </p>
+
+            <h3>Tools Used</h3>
+            <ul>
+                <li>YOLOv8 (person/object detection) + ByteTrack (tracking)</li>
+                <li>Dedicated gun/knife detection model</li>
+                <li>Flask (Backend Framework)</li>
+                <li>HTML, CSS, JavaScript (Frontend)</li>
+            </ul>
+
+            <h3>Key Features</h3>
+            <ul>
+                <li>Persistent Person IDs across an entire video</li>
+                <li>Temporal confirmation before raising a weapon alert</li>
+                <li>Confirmed threats highlight both the weapon and the associated person</li>
+                <li>Live webcam detection alongside video upload</li>
+            </ul>
+
+            <h3>Meet Our Team</h3>
+            <div class="team">
+              <div class="member-card">
+                <img src="https://www.w3schools.com/howto/img_avatar.png" alt="Siddhika Tathe">
+                <h4>Siddhika Tathe</h4>
+                <p>Project Manager & Agentic AI Developer</p>
+              </div>
+              <div class="member-card">
+                <img src="https://www.w3schools.com/howto/img_avatar2.png" alt="Pranav">
+                <h4>Pranav</h4>
+                <p>Computer Vision & ML Developer</p>
+              </div>
+              <div class="member-card">
+                <img src="https://www.w3schools.com/howto/img_avatar2.png" alt="Vasdev">
+                <h4>Vasdev</h4>
+                <p>Backend & API Developer</p>
+              </div>
+              <div class="member-card">
+                <img src="https://www.w3schools.com/howto/img_avatar.png" alt="Nikhil">
+                <h4>Nikhil</h4>
+                <p>UI/UX & Dashboard Developer</p>
+              </div>
+
+              <!-- <div class="member-card">
+                <img src="https://www.w3schools.com/howto/img_avatar.png" alt="Siddhika Tathe">
+                <h4>Siddhika Tathe</h4>
+                <p>Documentation & Project Support</p>
+              </div> -->
+          
+            </div>
+        </div>
+
+        <section class="faq-section" id="faq-section">
+            <h2>Frequently Asked Questions</h2>
+
+            <div class="faq-item">
+                <button class="faq-question">
+                    How does tracking work across a video?
+                    <span class="arrow">&#9654;</span>
+                </button>
+                <div class="faq-answer">
+                    <p>Each detected person is assigned a stable Person ID (e.g. PERSON-001) that persists across frames using ByteTrack combined with a re-identification layer.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question">
+                    Why doesn't a weapon alert appear instantly?
+                    <span class="arrow">&#9654;</span>
+                </button>
+                <div class="faq-answer">
+                    <p>A detection has to be confirmed across several consecutive frames before it's treated as a real alert. This avoids false alarms from a single noisy frame.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question">
+                    What happens when a weapon is confirmed?
+                    <span class="arrow">&#9654;</span>
+                </button>
+                <div class="faq-answer">
+                    <p>The weapon's bounding box turns red, AND the bounding box of the person holding it also turns red and is labeled as an armed alert. A sound and an on-screen notification are also triggered.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question">
+                    Does this work live, or only on uploaded video?
+                    <span class="arrow">&#9654;</span>
+                </button>
+                <div class="faq-answer">
+                    <p>Both. Use the "Upload Video" tab for recorded footage, or the "Live Camera" tab for real-time detection from a connected camera.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+  <!-- Footer -->
+    <footer>
+      <section class="contact-section" id="contact-section">
+      <div style="max-width:1200px; margin:auto; text-align:center; line-height:1.8;">
+          <p style="font-size:1.2rem; margin-bottom:1rem; font-weight:600;">CONTACT US</p>
+
+          <!-- Top row: Email & Phone -->
+          <div style="margin-bottom:15px;">
+      <span style="margin-right:30px;">
+          <i class="fas fa-envelope"></i> Email: 
+          <a href="mailto:siddhikatathe961@gmail.com" style="color:#32dde6; text-decoration:none;">siddhikatathe961@gmail.com</a>
+      </span>
+      <span>
+          <i class="fas fa-phone phone-icon"></i> Phone: 
+          <a href="tel:+911234567890" style="color:#32dde6; text-decoration:none;">+91 12345 67890</a>
+      </span>
+      
+  </div>
+        <div style="margin-bottom:15px;">
+        <span style="margin-right:30px; color:white;">
+      <i class="fas fa-map-marker-alt"></i> Address: 
+      <span style="color:#32dde6;">666, Upper Indira Nagar, Bibwewadi, Pune, Maharashtra, India - 411037</span>
+  </span></div>
+          <!-- Bottom row: GitHub, Demo, Email -->
+          <div style="margin-bottom:15px;">
+              <!-- <a href="https://github.com/aadi8067/AI-Public-Safety-Video-Monitor-Using-Computer-Vision-and-Agentic-AI.git" target="_blank" style="color:#32dde6; text-decoration:none; margin:0 10px;">GitHub Repo</a> | -->
+              <!-- <a href="https://youtu.be/YourDemoVideoLink" target="_blank" style="color:#32dde6; text-decoration:none; margin:0 10px;">Demo Video</a> | -->
+              <a href="{{ url_for('contact') }}" style="color:#32dde6; text-decoration:none; margin:0 10px;">Need Help?</a>
+          </div>
+
+          <p style="font-size:0.85rem; color:#b3b0b0; margin-top:1rem;">
+              © 2026 SecureSight AI — Advanced Public Safety Surveillance
+          </p>
+      </div>
+  </section>
+
+    </footer>
+
+    <script>
+        // ---------- Nav active-link scroll behavior ----------
+        const navLinks = document.querySelectorAll('nav ul li a');
+        const sections = document.querySelectorAll('section, main > .container');
+        const navbarHeight = 80;
+        let clickedLink = null;
+
+        function setActiveLink() {
+            if (clickedLink) return;
+            let scrollPos = window.scrollY + navbarHeight + 50;
+            sections.forEach(section => {
+                const id = section.getAttribute('id');
+                if (!id) return;
+                const link = document.querySelector(`nav ul li a[href="#${id}"]`);
+                if (!link) return;
+                const sectionTop = section.offsetTop;
+                const sectionBottom = sectionTop + section.offsetHeight - 120;
+                if (scrollPos >= sectionTop && scrollPos < sectionBottom) {
+                    navLinks.forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                }
+            });
+        }
+
+        navLinks.forEach(link => {
+            link.addEventListener('click', e => {
+                const href = link.getAttribute('href');
+                if (!href.startsWith('#')) return;
+                e.preventDefault();
+                const target = document.querySelector(href);
+                if (!target) return;
+                const targetPos = target.offsetTop - navbarHeight + 5;
+                window.scrollTo({ top: targetPos, behavior: 'smooth' });
+                navLinks.forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                clickedLink = link;
+            });
+        });
+
+        window.addEventListener('scroll', setActiveLink);
+        window.addEventListener('load', setActiveLink);
+
+        // ---------- FAQ accordion ----------
+        document.addEventListener('DOMContentLoaded', () => {
+            const faqItems = document.querySelectorAll('.faq-item');
+            faqItems.forEach(item => {
+                const question = item.querySelector('.faq-question');
+                const arrow = question.querySelector('.arrow');
+                question.addEventListener('click', () => {
+                    const isActive = item.classList.contains('active');
+                    faqItems.forEach(i => {
+                        i.classList.remove('active');
+                        const a = i.querySelector('.arrow');
+                        if (a) a.classList.remove('rotate');
+                    });
+                    if (!isActive) {
+                        item.classList.add('active');
+                        if (arrow) arrow.classList.add('rotate');
+                    }
+                });
+            });
+        });
+
+        // ---------- Mode tabs (Upload Video / Live Camera) ----------
+        const tabVideoBtn = document.getElementById('tabVideoBtn');
+        const tabLiveBtn = document.getElementById('tabLiveBtn');
+        const videoPanel = document.getElementById('videoPanel');
+        const livePanel = document.getElementById('livePanel');
+
+        function activateTab(tabBtn, panel, otherBtn, otherPanel) {
+            tabBtn.classList.add('active');
+            otherBtn.classList.remove('active');
+            panel.style.display = 'block';
+            otherPanel.style.display = 'none';
+        }
+
+        tabVideoBtn.addEventListener('click', () => {
+            activateTab(tabVideoBtn, videoPanel, tabLiveBtn, livePanel);
+        });
+        tabLiveBtn.addEventListener('click', () => {
+            activateTab(tabLiveBtn, livePanel, tabVideoBtn, videoPanel);
+        });
+
+        // ---------- Video upload + tracking ----------
+        const videoUploadForm = document.getElementById('videoUploadForm');
+        const videoConfidenceSlider = document.getElementById('videoConfidenceSlider');
+        const videoConfidenceValue = document.getElementById('videoConfidenceValue');
+        const videoInput = document.getElementById('videoInput');
+        const videoFileNameDisplay = document.getElementById('videoFileNameDisplay');
+        const videoResultBox = document.getElementById('videoResultBox');
+        const trackedVideo = document.getElementById('trackedVideo');
+        const videoProgress = document.getElementById('videoProgress');
+        const videoUploadLabel = document.getElementById('videoUploadLabel');
+
+        videoConfidenceSlider.addEventListener('input', () => {
+            videoConfidenceValue.textContent = videoConfidenceSlider.value;
+        });
+
+        videoInput.addEventListener('change', () => {
+            if (videoInput.files.length > 0) {
+                videoFileNameDisplay.textContent = videoInput.files[0].name;
+                videoUploadLabel.classList.add('has-file');
+            }
+        });
+
+        // Drag & drop visuals
+        ['dragover', 'dragenter'].forEach(evt => {
+            videoUploadLabel.addEventListener(evt, (e) => {
+                e.preventDefault();
+                videoUploadLabel.classList.add('dragging');
+            });
+        });
+        ['dragleave', 'drop'].forEach(evt => {
+            videoUploadLabel.addEventListener(evt, (e) => {
+                e.preventDefault();
+                videoUploadLabel.classList.remove('dragging');
+            });
+        });
+        videoUploadLabel.addEventListener('drop', (e) => {
+            if (e.dataTransfer.files.length > 0) {
+                videoInput.files = e.dataTransfer.files;
+                videoFileNameDisplay.textContent = e.dataTransfer.files[0].name;
+                videoUploadLabel.classList.add('has-file');
+            }
+        });
+
+        videoUploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const file = videoInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('video', file);
+            formData.append('confidence', videoConfidenceSlider.value);
+
+            // Weapon Alert System: must init audio + ask notification permission
+            // right here, inside the click/submit handler, or browsers will
+            // silently block both (they require a real user gesture).
+            initWeaponAudio();
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+
+            videoResultBox.textContent = "Processing video... this can take a while depending on length.";
+            trackedVideo.style.display = 'none';
+            videoProgress.style.display = 'flex';
+
+            try {
+                const response = await fetch('/detect_video', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                videoProgress.style.display = 'none';
+
+                if (data.error) {
+                    videoResultBox.textContent = "Error: " + data.error;
+                    return;
+                }
+
+                videoResultBox.textContent =
+                    `Frames processed: ${data.frames_processed}\n` +
+                    `Max people count in a single frame: ${data.max_people_count}`;
+
+                trackedVideo.src = data.output_video + '?t=' + Date.now();
+                trackedVideo.load();
+                trackedVideo.style.display = 'block';
+
+                renderSafetyDashboard(data);
+
+            } catch (err) {
+                videoProgress.style.display = 'none';
+                videoResultBox.textContent = "Request failed: " + err.message;
+            }
+        });
+
+        // ---------- Live detection toggle ----------
+        const liveBtn = document.getElementById('liveToggleButton');
+        const liveStream = document.getElementById('liveStream');
+        const liveResults = document.getElementById('liveResults');
+        const staticResults = document.getElementById('staticResults');
+        const liveStatusBadge = document.getElementById('liveStatusBadge');
+        let liveActive = false;
+
+        liveBtn.addEventListener('click', () => {
+            if (!liveActive) {
+                staticResults.style.display = "none";
+                liveResults.style.display = "block";
+                liveStream.src = "/live";
+                liveBtn.innerHTML = '<i class="fas fa-stop"></i> Stop Live Detection';
+                liveBtn.classList.add('live-active');
+                liveStatusBadge.textContent = "LIVE";
+                liveStatusBadge.className = "status-badge status-live";
+                liveActive = true;
+            } else {
+                liveStream.src = "";
+                staticResults.style.display = "block";
+                liveResults.style.display = "none";
+                liveBtn.innerHTML = '<i class="fas fa-video"></i> Start Live Detection';
+                liveBtn.classList.remove('live-active');
+                liveStatusBadge.textContent = "OFFLINE";
+                liveStatusBadge.className = "status-badge status-offline";
+                liveActive = false;
+            }
+        });
+
+        // ================== WEAPON ALERT SYSTEM (sound + popup + notification) ==================
+        // - Plays a beep sound: once if exactly 1 confirmed weapon event, twice if 2 or more.
+        // - Shows a red popup box in the corner of the page.
+        // - Shows a real OS-level browser notification, if the user granted permission.
+        let weaponAudioCtx = null;
+
+        function initWeaponAudio() {
+            // Must be created from inside a real user click (the form submit),
+            // otherwise browsers silently refuse to play any sound.
+            if (!weaponAudioCtx) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) weaponAudioCtx = new AudioCtx();
+            }
+            if (weaponAudioCtx && weaponAudioCtx.state === 'suspended') {
+                weaponAudioCtx.resume();
+            }
+        }
+
+        function playWeaponBeep(times) {
+            if (!weaponAudioCtx) return;
+            let delay = 0;
+            for (let i = 0; i < times; i++) {
+                const osc = weaponAudioCtx.createOscillator();
+                const gain = weaponAudioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.value = 880;
+                gain.gain.value = 0.18;
+                osc.connect(gain);
+                gain.connect(weaponAudioCtx.destination);
+                const start = weaponAudioCtx.currentTime + delay;
+                osc.start(start);
+                osc.stop(start + 0.25);
+                delay += 0.45; // gap between beeps
+            }
+        }
+
+        function showWeaponPopup(count) {
+            const old = document.getElementById('weaponAlertPopup');
+            if (old) old.remove();
+
+            const popup = document.createElement('div');
+            popup.id = 'weaponAlertPopup';
+            popup.style.cssText = `
+                position:fixed; top:20px; right:20px; z-index:9999;
+                background:#dc2626; color:#fff; padding:16px 20px;
+                border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.35);
+                font-family:'Inter',sans-serif; max-width:320px;
+                display:flex; align-items:center; gap:12px;`;
+            popup.innerHTML = `
+                <i class="fas fa-triangle-exclamation" style="font-size:1.6rem;"></i>
+                <div>
+                    <div style="font-weight:700;">WEAPON DETECTED</div>
+                    <div style="font-size:.85rem;opacity:.9;">${count} confirmed weapon event${count === 1 ? '' : 's'} found in this video.</div>
+                </div>
+                <button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;font-size:1.1rem;cursor:pointer;margin-left:auto;">&times;</button>`;
+            document.body.appendChild(popup);
+
+            // Auto-dismiss after 8 seconds, but the user can also close it manually.
+            setTimeout(() => { if (popup.parentElement) popup.remove(); }, 8000);
+
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('⚠️ Weapon Detected', {
+                    body: `${count} confirmed weapon event${count === 1 ? '' : 's'} found.`
+                });
+            }
+        }
+
+        function triggerWeaponAlertIfNeeded(weaponEvents) {
+            const count = weaponEvents.length;
+            if (count <= 0) return;
+            const beepTimes = count >= 2 ? 2 : 1;
+            playWeaponBeep(beepTimes);
+            showWeaponPopup(count);
+        }
+
+        // ---------- Safety report dashboard ----------
+        function severityClass(sev) {
+            sev = (sev || '').toUpperCase();
+            if (sev === 'CRITICAL' || sev === 'HIGH') return 'sev-high';
+            if (sev === 'MEDIUM') return 'sev-medium';
+            return 'sev-low';
+        }
+
+        function eventIcon(type) {
+            const map = {
+                'HIGH_DENSITY': 'fa-users',
+                'CROWD_BUILDUP': 'fa-users',
+                'ZONE_INTRUSION': 'fa-door-open',
+                'LOITERING': 'fa-hourglass-half',
+                'ABNORMAL_MOVEMENT': 'fa-person-running',
+                'POSSIBLE_FALL': 'fa-person-falling',
+            };
+            return map[type] || 'fa-triangle-exclamation';
+        }
+
+        function padId(n) {
+            return String(n).padStart(3, '0');
+        }
+
+        function renderSafetyDashboard(data) {
+            const dash = document.getElementById('safetyDashboard');
+            dash.style.display = 'block';
+
+            const safetyEvents = data.safety_events || [];
+            const weaponEvents = data.weapon_events || [];
+            const incidents = data.incidents || [];
+            const fps = data.fps || 25;
+
+            renderIncidents(incidents);
+
+            // Fire the sound + popup + notification alert if any weapons were confirmed.
+            triggerWeaponAlertIfNeeded(weaponEvents);
 
             // Surface any detector that failed mid-video (the run still completes;
             // the server console has the full traceback for the named detector).
